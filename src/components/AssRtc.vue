@@ -180,14 +180,17 @@ export default {
   },
   created() {
     // console.log('实例已经创建,msg变量还未渲染到模板')
-    this.roomid = this.$route.params.room
+    this.roomid = this.$route.query.room
     this.msg = this.roomid;
     console.log('roomid: ' + this.roomid);
-    this.authSession(
+    /* for debug */
+  /*   this.authSession(
       this.roomid,
       this.$route.query.timestamp,
       this.$route.query.sign
-    );
+    ); */
+    this.isAuthOk = true
+    this.initWebSocket();
   },
   mounted() {
     // console.log('已经挂载到模板上:msg变量渲染到模板')

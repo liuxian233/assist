@@ -6,6 +6,7 @@ import * as types from '../store/mutation-types'
 import Welcome from '@/components/Welcome'
 import AssRtc from '@/components/AssRtc'
 import Login from '@/components/Login.vue'
+import FileItem from '@/components/FileItem.vue'
 
 Vue.use(Router)
 
@@ -19,6 +20,11 @@ const routesa = [
     path: '/login',
     name: 'login',
     component: Login
+  },
+  {
+    path: '/file',
+    name: 'file',
+    component: FileItem
   },
   {
     // path: '/assist/:room',

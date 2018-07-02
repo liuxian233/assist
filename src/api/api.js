@@ -101,6 +101,7 @@ export default {
         return fetch.fetchGet('https://assistwss.ztems.com/sig/getRooms', params);
     },
     authSession(params) {
-        return fetch.fetchGet('http://localhost:8080/zassist/session/auth', params, { timeout: 5000 });
+        return fetch.fetchGet('https://assistwss.ztems.com/zassist/session/auth', params, { timeout: 5000 });
+        // return fetch.fetchGet('http://localhost:8080/zassist/session/auth', params, { timeout: 5000 });
     }
 }
