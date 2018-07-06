@@ -4,31 +4,9 @@
   <div v-if='isAuthOk' class='container'>
     <div id='controll'>
       <h1>测试人员{{ msg }}在线</h1>
-      <!-- <div id='audio'>
-        <div>
-          <div class='label'>Local audio:</div>
-          <audio id='localAudio' :src='local_audio' autoplay controls muted></audio>
-        </div>
-        <div>
-          <div class='label'>Remote audio:</div>
-          <audio id='remoteAudio' :src='remote_audio' autoplay controls></audio>
-        </div>
-      </div>
 
-      <div id='buttons'>
-        <el-select v-model='value' placeholder='请选择'>
-          <el-option v-for='item in options' :key='item.value'
-            :label='item.label' :value='item.value'>
-          </el-option>
-        </el-select>
-      </div> -->
-      <!-- <div>state</div> -->
-      <!-- <el-input
-        type='textarea'
-        :rows='2'
-        placeholder='请输入内容'
-        v-model='state'>
-      </el-input> -->
+      
+
       <el-table :data='phoneData' border>
         <el-table-column prop='key' label='参数名' width='100'/>
         <el-table-column prop='value' label='参数'/>
@@ -40,6 +18,54 @@
         placeholder='请输入内容'
         v-model='iceState'>
       </el-input>
+
+      <div>
+        <h4>文件管理</h4>
+        
+<el-row>
+    <el-col :span="24" style="text-align: left;"><div>
+        <el-tooltip class="item" effect="dark" content="返回上层" placement="top">
+            <a @click="getDir(0, fileParentPath)" href="#" ><i class="el-icon-back"/></a>
+        </el-tooltip>
+        <el-tooltip class="item" effect="dark" content="刷新" placement="top">
+            <a @click="getDir(0, fileCurPath)" href="#" ><i class="el-icon-refresh"/></a>
+        </el-tooltip>
+        当前路径：{{fileCurPath}}
+    </div></el-col>
+</el-row>
+
+
+<el-table :data="fileList" style="text-align: left;width: 100%" :show-header="false"  max-height="250">
+
+    <el-table-column  fixed  prop="name"  label="文件"  width="300">
+      <template slot-scope="scope">
+        <b v-if='scope.row.isFile'>{{ scope.row.name }}</b>
+        <a v-else href='#' @click="getDir(scope.$index, scope.row.absolutePath)">{{ scope.row.name }}</a>
+      </template>
+    </el-table-column>
+    <el-table-column  fixed  prop="modifyDate"  label="修改时间"  width="150">
+      <template slot-scope="scope">
+       {{ dateformate(new Date(scope.row.lastModifed)) }}
+      </template>
+    </el-table-column>
+    <el-table-column  fixed  label="操作"  width="50">
+      <template slot-scope="scope">
+       <a href='#' @click="del(scope.$index, scope.row.absolutePath)"><i class="el-icon-delete"></i></a>
+      </template>
+    </el-table-column>
+</el-table>
+
+<el-form :inline="true"  class="demo-form-inline" style="text-align: left;">
+  <el-form-item label="上传文件至当前目录">
+    <input  @change="sendFile"  type="file" />
+  </el-form-item>
+  <el-form-item>
+    <i v-if='bFileSending' class="el-icon-loading"/>
+  </el-form-item>
+</el-form>
+
+      </div>
+
       <div id='phonebutton'>
         <el-button style='width: 120px;' type='primary' v-bind:disabled='hangupDisabled' @click='hangup'>Hang Up</el-button>
       </div>
@@ -175,7 +201,11 @@ export default {
       iceState: '',
       state: '',
       phoneData: [],
-      isAuthOk: false
+      isAuthOk: false,
+      fileList: [{ name: '/', isFile: false, absolutePath: '/', lastModifed: 0 }],
+      bFileSending: false,
+      fileCurPath: '/',
+      fileParentPath: '/'
     };
   },
   created() {
@@ -184,11 +214,11 @@ export default {
     this.msg = this.roomid;
     console.log('roomid: ' + this.roomid);
     /* for debug */
-  /*   this.authSession(
-      this.roomid,
-      this.$route.query.timestamp,
-      this.$route.query.sign
-    ); */
+    /*   this.authSession(
+        this.roomid,
+        this.$route.query.timestamp,
+        this.$route.query.sign
+      ); */
     this.isAuthOk = true
     this.initWebSocket();
   },
@@ -201,24 +231,109 @@ export default {
 
     // this.initWebSocket();
   },
-  updated: function() {
+  updated: function () {
     // console.log('实例更新啦')
     if (this.roomid === null || this.roomid === '') {
       this.$router.push({ name: 'Welcome111' });
     }
   },
-  destroyed: function() {
+  destroyed: function () {
     // console.log('销毁啦')
     this.hangup();
   },
   methods: {
+    sendFile(event) {
+      var files = event.target.files
+      if (!files || !files[0]) {
+        return
+      }
+
+      var file = files[0]
+      console.log('sendFile dataChannel.readyState:' + dataChannel.readyState);
+      console.log('sendFile ' + [file.name, file.size, file.type, file.lastModifiedDate].join(','));
+
+      if (file.size === 0) {
+        this.$message({ showClose: true, type: 'error', message: '文件为空' });
+        return;
+      }
+
+      // 以下代码大部分参考 https://webrtc.github.io/samples/src/content/datachannel/filetransfer/
+      if (this.bFileSending) {
+        this.$message({ showClose: true, type: 'error', message: '前一次的文件发送尚未完成，请稍后再试' });
+        return;
+      }
+      this.bFileSending = true
+
+      var fileListReq = { type: 22, absolutePath: this.fileCurPath + '/' + file.name, size: file.size };
+      dataChannel.binaryType = 'arraybuffer';
+
+      try {
+        dataChannel.send(JSON.stringify(fileListReq));
+        console.log('sendFile signal:' + JSON.stringify(fileListReq))
+      } catch (error) {
+        this.bFileSending = false
+        console.log('sendFile send signal error:' + error + ' bFileSending:' + this.bFileSending)
+        this.$message({ showClose: true, type: 'error', message: '文件发送失败。' });
+        return
+      }
+
+      var that = this
+      var chunkSize = 8192;
+      // var chunkSize = 16384;
+      var sliceFile = function (offset) {
+        var reader = new window.FileReader();
+        reader.onload = (function () {
+          return function (e) {
+            try {
+              dataChannel.send(e.target.result);
+              console.log('sendFile send slice')
+            } catch (error) {
+              that.bFileSending = false
+              console.log('sendFile error:' + error + ' bFileSending:' + that.bFileSending)
+              that.$message({ showClose: true, type: 'error', message: '文件发送失败。' });
+              return
+            }
+
+            if (file.size > offset + e.target.result.byteLength) {
+              window.setTimeout(sliceFile, 0, offset + chunkSize);
+            } else {
+              that.bFileSending = false
+              console.log('sendFile finish bFileSending:' + that.bFileSending)
+              that.$message({ showClose: true, type: 'success', message: '文件发送完成，对端接收可能会存在一段延时。' });
+            }
+          };
+        })(file);
+        reader.onerror = function (e) {
+          that.bFileSending = false
+          console.log('sendFile read file onerror bFileSending:' + that.bFileSending)
+          that.$message({ showClose: true, type: 'error', message: '文件发送失败。' });
+        }
+
+        var slice = file.slice(offset, offset + chunkSize);
+        reader.readAsArrayBuffer(slice);
+      };
+      sliceFile(0);
+    },
+    getDir(index, path) {
+      console.log('getDir...' + path)
+      var fileListReq = { type: 21, showpath: path };
+      dataChannel.binaryType = 'arraybuffer';
+      dataChannel.send(JSON.stringify(fileListReq));
+    },
+    del(index, path) {
+      console.log('delete...')
+      console.log(path)
+    },
+    dateformate(d) {
+      return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + ' ' + d.getHours() + ':' + d.getMinutes() + ':' + d.getSeconds();
+    },
     authSession(roomid, timestamp, sign) {
       console.log('authSession send req');
       var that = this;
       var param = { roomid: roomid, timestamp: timestamp, sign: sign };
       api
         .authSession(param)
-        .then(function(resp) {
+        .then(function (resp) {
           console.log('authSession resp');
           if (resp.data) {
             console.log(resp.data);
@@ -232,7 +347,7 @@ export default {
             window.alert('无效的会话');
           }
         })
-        .catch(function(error) {
+        .catch(function (error) {
           console.log(error);
           window.alert('会话鉴权失败');
         });
@@ -242,7 +357,7 @@ export default {
       let self = this;
       peerConn = new RTCPeerConnection(servers, pcConstraints);
       // trace('Created local peer connection object pc1')
-      peerConn.onaddstream = function(e) {
+      peerConn.onaddstream = function (e) {
         // console.log('zwb onaddstream' + e);
         console.log('zwb remote AudioTracks', e.stream.getAudioTracks());
         console.log('zwb remote VideoTracks', e.stream.getVideoTracks());
@@ -250,11 +365,11 @@ export default {
         var video = document.getElementById('remoteVideo');
         video.srcObject = e.stream;
       };
-      peerConn.ontrack = function(e) {
+      peerConn.ontrack = function (e) {
         console.log('zwb onaddstream' + e);
         // self.remote_video = window.URL.createObjectURL(e.stream);
       };
-      peerConn.onicecandidate = function(event) {
+      peerConn.onicecandidate = function (event) {
         console.log('zwb candidate st:' + event.target.iceGatheringState);
 
         if (event.candidate) {
@@ -264,17 +379,17 @@ export default {
           // appendCell(row, c.foundation);
           console.log(
             'zwb local candidate got:' +
-              c.protocol +
-              '-' +
-              c.address +
-              '-' +
-              c.port
+            c.protocol +
+            '-' +
+            c.address +
+            '-' +
+            c.port
           );
           // appendCell(row, formatPriority(c.priority));
           // candidates.push(c);
         }
 
-        setTimeout(function() {
+        setTimeout(function () {
           if (event.candidate) {
             self.send({
               event: 'candidate',
@@ -284,25 +399,25 @@ export default {
           }
         });
       };
-      peerConn.onicegatheringstatechange = function(event) {};
-      peerConn.ondatachannel = function(evt) {
+      peerConn.onicegatheringstatechange = function (event) { };
+      peerConn.ondatachannel = function (evt) {
         self.addDataChannel(evt.channel);
       };
       this.iceState = peerConn.iceConnectionState;
-      peerConn.oniceconnectionstatechange = function(e) {
+      peerConn.oniceconnectionstatechange = function (e) {
         // console.log('zwb ICE state change event: ', e);
         var iceState = peerConn.iceConnectionState;
         self.iceState += ' => ' + iceState;
       };
       this.state = peerConn.signalingState || peerConn.readyState;
-      peerConn.onsignalingstatechange = function(e) {
+      peerConn.onsignalingstatechange = function (e) {
         // console.log('zwb ICE state change event: ', e);
         var state = peerConn.signalingState || peerConn.readyState;
         self.state += ' => ' + state;
       };
       self.createDataChannel('sendControlDataChannel');
     },
-    initCreate: function() {
+    initCreate: function () {
       window.trace('Requesting local stream');
       let self = this;
       this.ctlBtnDisabled = true;
@@ -310,7 +425,7 @@ export default {
 
       navigator.mediaDevices
         .getUserMedia(constraints)
-        .then(function(stream) {
+        .then(function (stream) {
           // displaying local video stream on the page
           // self.local_video = window.URL.createObjectURL(stream)
           // self.remote_video = window.URL.createObjectURL(stream)
@@ -331,9 +446,9 @@ export default {
           //   console.log('zwb local VideoTracks', stream.getVideoTracks());
           // };
         })
-        .catch(function(e) {
+        .catch(function (e) {
           self.hangupDisabled = false;
-          alert('zwb getUserMedia() error: ' + e.name);
+          // alert('zwb getUserMedia() error: ' + e.name);
         });
       window.trace('Starting call');
       // startTime = window.performance.now()
@@ -375,14 +490,14 @@ export default {
         var self = this;
         // create an offer
         peerConn.createOffer(offerOptions).then(
-          function(offer) {
+          function (offer) {
             self.send({
               event: 'offer',
               offer: offer
             });
             peerConn.setLocalDescription(offer);
           },
-          function(error) {
+          function (error) {
             alert('Error when creating an offer' + error.toString());
           }
         );
@@ -396,10 +511,10 @@ export default {
       // connectedUser = data.name
       // peerConn.setRemoteDescription(new RTCSessionDescription(data.offer));
       peerConn.setRemoteDescription(offer).then(
-        function() {
+        function () {
           // create an answer to an offer
           peerConn.createAnswer(
-            function(answer) {
+            function (answer) {
               peerConn.setLocalDescription(answer);
               self.send({
                 event: 'answer',
@@ -407,13 +522,13 @@ export default {
               });
               console.log('zwb set Local RDP and send to remote suc');
             },
-            function(error) {
+            function (error) {
               alert('Error when creating an answer' + error.toString());
             }
           );
           console.log('zwb set Remote RDP suc');
         },
-        function(error) {
+        function (error) {
           console.log('setRemot RDP error:' + error);
         }
       );
@@ -433,15 +548,15 @@ export default {
         var c = self.parseCandidate(data.candidate.candidate);
         console.log(
           'zwb remote candidate got:' +
-            c.protocol +
-            '-' +
-            c.address +
-            '-' +
-            c.port
+          c.protocol +
+          '-' +
+          c.address +
+          '-' +
+          c.port
         );
       }
       const candidate = data.candidate;
-      peerConn.addIceCandidate(candidate).then(function() {
+      peerConn.addIceCandidate(candidate).then(function () {
         // self.send({
         //   event: 'candidate',
         //   answer: savedCandidate
@@ -487,13 +602,13 @@ export default {
         this.websock.send(strData);
       } else if (this.websock.readyState === this.websock.CONNECTING) {
         // 若是 正在开启状态，则等待300毫秒
-        setTimeout(function() {
+        setTimeout(function () {
           that.websock.send(strData);
         }, 300);
       } else {
         // 若未开启 ，则等待500毫秒
         this.initWebSocket();
-        setTimeout(function() {
+        setTimeout(function () {
           that.websock.send(strData);
         }, 500);
       }
@@ -505,12 +620,12 @@ export default {
       const wsuri = 'wss://assistwss.ztems.com' + '/sig/ws';
       // const wsuri = 'ws://127.0.0.1:8080' + '/sig/ws';
       this.websock = new WebSocket(wsuri);
-      this.websock.onopen = function() {
+      this.websock.onopen = function () {
         console.log('zwb websock.onopen');
         // if (peerConn === null) {
         self.initCreate();
         // }
-        setTimeout(function() {
+        setTimeout(function () {
           var data = JSON.stringify({
             cmd: 'register',
             roomid: self.roomid,
@@ -520,7 +635,7 @@ export default {
           console.log('zwb register suc');
         }, 100);
       };
-      this.websock.onmessage = function(e) {
+      this.websock.onmessage = function (e) {
         const redata = JSON.parse(e.data); // {}
         const error = redata.error;
         if (error) {
@@ -531,7 +646,7 @@ export default {
         // console.log(redata.value)
         self.processMsg(msg);
       };
-      this.websock.onclose = function(e) {
+      this.websock.onclose = function (e) {
         console.log('zwb connection closed (' + e.code + ')');
         // self.handleLeave();
       };
@@ -590,25 +705,44 @@ export default {
     },
     addDataChannel(channel) {
       var that = this;
-      channel.onopen = function() {
+      channel.onopen = function () {
         // that.emit('data_channel_opened', channel, socketId);
       };
-      channel.onclose = function(event) {
+      channel.onclose = function (event) {
+        console.log('dataChannel onclose!!!')
+        window.trace('datachannel error:' + event);
         // delete that.dataChannels[socketId];
         // that.emit('data_channel_closed', channel, socketId);
         that.phoneData = [];
       };
-      channel.onmessage = function(message) {
+      channel.onmessage = function (message) {
+        console.log('datachannel onMessage:' + message.data)
         var json = JSON.parse(message.data);
+        console.log('datachannel type:' + json.type)
         if (json.type === '__file') {
           /* that.receiveFileChunk(json); */
           // that.parseFilePacket(json, socketId);
         } else {
           // that.emit('data_channel_message', channel, socketId, json.data);
         }
-        that.phoneData = json;
+        if (json === null) {
+          return
+        }
+        if (json.type === 31) {
+          that.phoneData = json;
+        } else if (json.type === 32) {
+          if (json.data != null && json.data.list != null && json.data.curPath != null) {
+            that.fileList = json.data.list
+            that.fileCurPath = json.data.curPath
+            that.fileParentPath = (json.data.partntPath === undefined || json.data.partntPath === null) ? '/' : json.data.partntPath
+            console.log('file list updated')
+          }
+        }
+
+        // todo lx
+        // that.phoneData = json;
       };
-      channel.onerror = function(err) {
+      channel.onerror = function (err) {
         // that.emit('data_channel_error', channel, socketId, err);
         window.trace('datachannel error:' + err);
         that.phoneData = [];

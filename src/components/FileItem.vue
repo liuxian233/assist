@@ -1,4 +1,16 @@
 <template>
+<div>
+
+<el-row>
+    <el-col :span="24" style="text-align: left;"><div>
+        <el-tooltip class="item" effect="dark" content="返回上层" placement="top">
+            <a href="#"><i class="el-icon-back"/></a>
+        </el-tooltip>
+        当前路径：{{fileCurPath}}
+    </div></el-col>
+</el-row>
+
+
 <el-table
     :data="tableData"
     style="width: 100%"
@@ -17,7 +29,6 @@
     </el-table-column>
     <el-table-column
       fixed
-      align='left'
       prop="modifyDate"
       label="修改时间"
       width="150">
@@ -34,6 +45,17 @@
       </template>
     </el-table-column>
 </el-table>
+
+<el-form :inline="true" :model="formInline" class="demo-form-inline" style="text-align: left;">
+  <el-form-item label="上传文件至当前目录">
+    <input type="file" />
+  </el-form-item>
+  <el-form-item>
+    <i v-if='bFileSending' class="el-icon-loading"/>
+  </el-form-item>
+</el-form>
+
+</div>
 </template>
 
 <script>
@@ -52,7 +74,10 @@ export default {
             { name: 'auth.apk', isFile: true, absPath: '/auth.apk', modifyDate: 1530513380000 },
             { name: 'system', isFile: false, absPath: '/system', modifyDate: 1530513380000 },
             { name: 'auth.apk', isFile: true, absPath: '/auth.apk', modifyDate: 1530513380000 },
-            { name: 'system', isFile: false, absPath: '/system', modifyDate: 1530513380000 }]
+            { name: 'system', isFile: false, absPath: '/system', modifyDate: 1530513380000 }],
+            bFileSending: true,
+            fileCurPath: '/sdcard/data/org.zx.AuthComp/lib/arm64',
+            fileParentPath: null
         };
     },
     methods: {
@@ -70,3 +95,33 @@ export default {
     }
 };
 </script>
+
+
+<style scoped>
+  .el-row {
+    margin-bottom: 20px;
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  .el-col {
+    border-radius: 4px;
+  }
+  .bg-purple-dark {
+    background: #99a9bf;
+  }
+  .bg-purple {
+    background: #d3dce6;
+  }
+  .bg-purple-light {
+    background: #e5e9f2;
+  }
+  .grid-content {
+    border-radius: 4px;
+    min-height: 36px;
+  }
+  .row-bg {
+    padding: 10px 0;
+    background-color: #f9fafc;
+  }
+</style>
