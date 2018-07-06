@@ -748,35 +748,63 @@ export default {
         that.phoneData = [];
       };
     },
-    ctlVUp() {
-      var VoicePlusMessage = { type: 3, code: 24 };
+    dataChannelAvailable() {
+      if (this.bFileSending) {
+        this.$message({ showClose: true, type: 'info', message: '文件传送过程中暂时不可控制手机', duration: 2000 });
+        return false;
+      }
+
+      if (this.dataChannel.readyState !== 'open') {
+        console.log('dataChannel.readyState: ' + this.dataChannel.readyState);
+        this.$message({ showClose: true, type: 'warning', message: '暂时不能控制手机，通道当前状态:' + this.dataChannel.readyState, duration: 2000 });
+        return false;
+      }
+      return true;
+    },
+    sendKeyEvent(key) {
+      if (!this.dataChannelAvailable()) {
+        return;
+      }
+
+      var VoicePlusMessage = { type: 3, code: key };
       dataChannel.binaryType = 'arraybuffer';
       dataChannel.send(JSON.stringify(VoicePlusMessage));
     },
+    ctlVUp() {
+      this.sendKeyEvent(24);
+      // var VoicePlusMessage = { type: 3, code: 24 };
+      // dataChannel.binaryType = 'arraybuffer';
+      // dataChannel.send(JSON.stringify(VoicePlusMessage));
+    },
     ctlVDown() {
-      var VoiceReduceMessage = { type: 3, code: 25 };
-      dataChannel.binaryType = 'arraybuffer';
-      dataChannel.send(JSON.stringify(VoiceReduceMessage));
+      this.sendKeyEvent(25);
+      // var VoiceReduceMessage = { type: 3, code: 25 };
+      // dataChannel.binaryType = 'arraybuffer';
+      // dataChannel.send(JSON.stringify(VoiceReduceMessage));
     },
     ctlPower() {
-      var PowerMessage = { type: 3, code: 26 };
-      dataChannel.binaryType = 'arraybuffer';
-      dataChannel.send(JSON.stringify(PowerMessage));
+      this.sendKeyEvent(26);
+      // var PowerMessage = { type: 3, code: 26 };
+      // dataChannel.binaryType = 'arraybuffer';
+      // dataChannel.send(JSON.stringify(PowerMessage));
     },
     ctlHome() {
-      var HOMEMessage = { type: 3, code: 3 };
-      dataChannel.binaryType = 'arraybuffer';
-      dataChannel.send(JSON.stringify(HOMEMessage));
+      this.sendKeyEvent(3);
+      // var HOMEMessage = { type: 3, code: 3 };
+      // dataChannel.binaryType = 'arraybuffer';
+      // dataChannel.send(JSON.stringify(HOMEMessage));
     },
     ctlBack() {
-      var backMessage = { type: 3, code: 4 };
-      dataChannel.binaryType = 'arraybuffer';
-      dataChannel.send(JSON.stringify(backMessage));
+      this.sendKeyEvent(4);
+      // var backMessage = { type: 3, code: 4 };
+      // dataChannel.binaryType = 'arraybuffer';
+      // dataChannel.send(JSON.stringify(backMessage));
     },
     ctlMenu() {
-      var menuMessage = { type: 3, code: 28 };
-      dataChannel.binaryType = 'arraybuffer';
-      dataChannel.send(JSON.stringify(menuMessage));
+      this.sendKeyEvent(28);
+      // var menuMessage = { type: 3, code: 28 };
+      // dataChannel.binaryType = 'arraybuffer';
+      // dataChannel.send(JSON.stringify(menuMessage));
     },
     // Parse a candidate:foo string into an object, for easier use by other methods.
     parseCandidate(text) {
@@ -803,13 +831,22 @@ export default {
       };
     },
     downFunction(event) {
+      if (!this.dataChannelAvailable()) {
+        return;
+      }
       remote.dataChannel = dataChannel;
       remote.mouseDown(event);
     },
     moveFunction(event) {
+      if (!this.dataChannelAvailable()) {
+        return;
+      }
       remote.mouseMove(event);
     },
     upFunction(event) {
+      if (!this.dataChannelAvailable()) {
+        return;
+      }
       var sendMessage = remote.mouseUp(event);
       dataChannel.binaryType = 'arraybuffer';
       dataChannel.send(JSON.stringify(sendMessage));
